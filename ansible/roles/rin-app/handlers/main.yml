@@ -1,0 +1,25 @@
+---
+# Handlers for Rin application role
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+  become: yes
+
+- name: Restart rin service
+  ansible.builtin.systemd:
+    name: rin
+    state: restarted
+  become: yes
+
+- name: Stop rin service
+  ansible.builtin.systemd:
+    name: rin
+    state: stopped
+  become: yes
+
+- name: Start rin service
+  ansible.builtin.systemd:
+    name: rin
+    state: started
+  become: yes

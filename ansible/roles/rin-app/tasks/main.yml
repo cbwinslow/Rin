@@ -1,0 +1,88 @@
+---
+# Rin Application Role - Main deployment tasks
+
+- name: Clone or update Rin repository
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_base_dir }}/{{ app_name }}"
+    version: "{{ app_branch }}"
+    force: yes
+    update: yes
+  become: yes
+  become_user: "{{ app_user }}"
+  when: deployment_type == "homelab"
+  register: git_clone
+
+- name: Create environment file for development
+  ansible.builtin.template:
+    src: dev.vars.j2
+    dest: "{{ app_base_dir }}/{{ app_name }}/.dev.vars"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: '0600'
+  become: yes
+  when: deployment_type == "homelab"
+
+- name: Create wrangler.toml from template
+  ansible.builtin.template:
+    src: wrangler.toml.j2
+    dest: "{{ app_base_dir }}/{{ app_name }}/wrangler.toml"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: '0644'
+  become: yes
+  when: deployment_type == "homelab"
+
+- name: Install Bun dependencies
+  ansible.builtin.shell: |
+    export BUN_INSTALL="/root/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    bun install --frozen-lockfile
+  args:
+    chdir: "{{ app_base_dir }}/{{ app_name }}"
+  become: yes
+  become_user: "{{ app_user }}"
+  when: deployment_type == "homelab" and git_clone.changed
+
+- name: Build client application
+  ansible.builtin.shell: |
+    export BUN_INSTALL="/root/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    bun run build
+  args:
+    chdir: "{{ app_base_dir }}/{{ app_name }}/client"
+  become: yes
+  become_user: "{{ app_user }}"
+  when: deployment_type == "homelab"
+  register: build_client
+
+- name: Generate database schema
+  ansible.builtin.shell: |
+    export BUN_INSTALL="/root/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    bun run db:gen
+  args:
+    chdir: "{{ app_base_dir }}/{{ app_name }}/server"
+  become: yes
+  become_user: "{{ app_user }}"
+  when: deployment_type == "homelab"
+
+- name: Create systemd service file
+  ansible.builtin.template:
+    src: rin.service.j2
+    dest: /etc/systemd/system/rin.service
+    mode: '0644'
+  become: yes
+  when: deployment_type == "homelab"
+  notify:
+    - Reload systemd
+    - Restart rin service
+
+- name: Enable and start Rin service
+  ansible.builtin.systemd:
+    name: rin
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  become: yes
+  when: deployment_type == "homelab"

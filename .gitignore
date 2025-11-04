@@ -33,3 +33,18 @@ dist-ssr
 *.sln
 *.sw?
 /.dev.vars
+
+# Ansible sensitive files
+ansible/group_vars/all/vault.yml
+ansible/.vault_pass
+ansible/*.retry
+ansible/.ansible
+
+# Ansible logs and cache
+/tmp/ansible*
+ansible_facts/
+
+# Backup files
+*.bak
+*.backup
+*~

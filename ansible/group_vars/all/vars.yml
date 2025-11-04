@@ -1,0 +1,15 @@
+---
+# Common variables for all deployments
+
+# Application settings
+app_name: rin
+app_version: latest
+deployment_environment: production
+
+# Logging
+log_level: info
+enable_debug: false
+
+# Backup settings
+enable_backups: true
+backup_retention_days: 30

@@ -1,0 +1,26 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "{{ worker_name }}"
+main = "server/src/_worker.ts"
+compatibility_date = "2024-05-29"
+node_compat = true
+
+[triggers]
+crons = ["*/20 * * * *"]
+
+[vars]
+FRONTEND_URL = "{{ frontend_url }}"
+S3_FOLDER = "{{ s3_folder }}"
+S3_CACHE_FOLDER = "{{ s3_cache_folder }}"
+S3_REGION = "{{ s3_region }}"
+S3_ENDPOINT = "{{ s3_endpoint }}"
+S3_ACCESS_HOST = "{{ s3_access_host }}"
+S3_BUCKET = "{{ s3_bucket }}"
+S3_FORCE_PATH_STYLE = "{{ s3_force_path_style }}"
+WEBHOOK_URL = "{{ webhook_url }}"
+RSS_TITLE = "{{ rss_title }}"
+RSS_DESCRIPTION = "{{ rss_description }}"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "{{ db_name }}"
+database_id = "{{ db_name }}"

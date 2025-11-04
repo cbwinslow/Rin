@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  author: Rin Team
+  description: Common dependencies and setup for Rin deployment
+  license: MIT
+  min_ansible_version: 2.9
+  
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+  
+  galaxy_tags:
+    - common
+    - setup
+    - dependencies
+
+dependencies: []
