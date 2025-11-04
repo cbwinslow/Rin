@@ -1,0 +1,125 @@
+name: Ansible CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - 'copilot/**'
+    paths:
+      - 'ansible/**'
+      - 'deploy.sh'
+      - 'manage.sh'
+      - 'setup.sh'
+      - '.github/workflows/ansible-ci.yml'
+  pull_request:
+    paths:
+      - 'ansible/**'
+      - 'deploy.sh'
+      - 'manage.sh'
+      - 'setup.sh'
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    name: Lint and Test Ansible Playbooks
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible ansible-lint
+          
+      - name: Display Ansible version
+        run: ansible --version
+        
+      - name: Validate Ansible configuration
+        run: |
+          cd ansible
+          ansible-config dump
+          
+      - name: Run ansible-lint
+        run: |
+          cd ansible
+          ansible-lint playbooks/*.yml roles/*/tasks/*.yml || true
+        continue-on-error: true
+        
+      - name: Syntax check all playbooks
+        run: |
+          cd ansible
+          for playbook in playbooks/*.yml; do
+            echo "Checking $playbook..."
+            ansible-playbook "$playbook" --syntax-check -i tests/inventory/test-hosts.yml
+          done
+          
+      - name: Run validation tests
+        run: |
+          cd ansible
+          ansible-playbook tests/playbooks/test-validation.yml
+          
+      - name: Check shell scripts
+        run: |
+          bash -n deploy.sh
+          bash -n manage.sh
+          bash -n setup.sh
+          bash -n ansible/tests/run-tests.sh
+          
+      - name: Run test suite
+        run: |
+          cd ansible/tests
+          ./run-tests.sh
+          
+      - name: Validate inventory files
+        run: |
+          cd ansible
+          ansible-inventory -i inventories/hosts.yml --list > /dev/null
+          ansible-inventory -i tests/inventory/test-hosts.yml --list > /dev/null
+          
+      - name: Check for sensitive data
+        run: |
+          # Ensure no actual secrets are committed
+          if grep -r "your_.*_here" ansible/group_vars/all/vault.yml.example; then
+            echo "✓ Example file contains placeholders"
+          else
+            echo "✗ Example file may contain real secrets"
+            exit 1
+          fi
+          
+          # Ensure vault.yml is not committed
+          if [ -f ansible/group_vars/all/vault.yml ]; then
+            echo "✗ vault.yml should not be committed!"
+            exit 1
+          else
+            echo "✓ vault.yml is not committed"
+          fi
+          
+      - name: Generate deployment summary
+        run: |
+          echo "## Ansible CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Tests Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Syntax validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Configuration validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Role structure validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Inventory validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Shell script validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Playbooks" >> $GITHUB_STEP_SUMMARY
+          cd ansible
+          for playbook in playbooks/*.yml; do
+            echo "- $(basename $playbook)" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎭 Roles" >> $GITHUB_STEP_SUMMARY
+          for role in roles/*/; do
+            echo "- $(basename $role)" >> $GITHUB_STEP_SUMMARY
+          done

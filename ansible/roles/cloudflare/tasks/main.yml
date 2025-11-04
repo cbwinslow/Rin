@@ -1,0 +1,95 @@
+---
+# Cloudflare deployment role
+
+- name: Ensure wrangler is installed
+  ansible.builtin.shell: |
+    npm list -g wrangler || npm install -g wrangler
+  changed_when: false
+
+- name: Clone Rin repository locally
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "/tmp/rin-deploy"
+    version: "{{ app_branch }}"
+    force: yes
+  delegate_to: localhost
+
+- name: Install dependencies
+  ansible.builtin.shell: |
+    bun install --frozen-lockfile
+  args:
+    chdir: /tmp/rin-deploy
+  delegate_to: localhost
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/root/.bun/bin"
+
+- name: Create environment variables file
+  ansible.builtin.copy:
+    content: |
+      export CLOUDFLARE_ACCOUNT_ID="{{ cloudflare_account_id }}"
+      export CLOUDFLARE_API_TOKEN="{{ cloudflare_api_token }}"
+      export S3_ACCESS_KEY_ID="{{ s3_access_key_id }}"
+      export S3_SECRET_ACCESS_KEY="{{ s3_secret_access_key }}"
+      export JWT_SECRET="{{ jwt_secret }}"
+      export RIN_GITHUB_CLIENT_ID="{{ github_client_id }}"
+      export RIN_GITHUB_CLIENT_SECRET="{{ github_client_secret }}"
+      export DB_NAME="{{ db_name }}"
+      export WORKER_NAME="{{ worker_name }}"
+      export FRONTEND_URL="{{ frontend_url }}"
+      export S3_ACCESS_HOST="{{ s3_access_host }}"
+      export S3_BUCKET="{{ s3_bucket }}"
+      export S3_CACHE_FOLDER="{{ s3_cache_folder }}"
+      export S3_ENDPOINT="{{ s3_endpoint }}"
+      export S3_FOLDER="{{ s3_folder }}"
+      export S3_REGION="{{ s3_region }}"
+      export S3_FORCE_PATH_STYLE="{{ s3_force_path_style }}"
+      export WEBHOOK_URL="{{ webhook_url }}"
+      export RSS_TITLE="{{ rss_title }}"
+      export RSS_DESCRIPTION="{{ rss_description }}"
+    dest: /tmp/rin-deploy/.env.deploy
+    mode: '0600'
+  delegate_to: localhost
+
+- name: Run Cloudflare migration and deployment script
+  ansible.builtin.shell: |
+    source .env.deploy
+    bun scripts/migrator.ts
+  args:
+    chdir: /tmp/rin-deploy
+  delegate_to: localhost
+  register: cf_deploy
+  environment:
+    PATH: "{{ ansible_env.PATH }}:/root/.bun/bin"
+
+- name: Display deployment output
+  ansible.builtin.debug:
+    var: cf_deploy.stdout_lines
+
+- name: Configure Cloudflare DNS
+  ansible.builtin.uri:
+    url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflare_zone_id }}/dns_records"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ cloudflare_api_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      type: "CNAME"
+      name: "{{ domain }}"
+      content: "{{ worker_name }}.workers.dev"
+      ttl: 1
+      proxied: true
+    status_code: [200, 201, 400]
+  register: dns_result
+  delegate_to: localhost
+  failed_when: false
+
+- name: Display DNS configuration result
+  ansible.builtin.debug:
+    msg: "DNS configured: {{ dns_result.json.success | default(false) }}"
+
+- name: Clean up temporary deployment directory
+  ansible.builtin.file:
+    path: /tmp/rin-deploy
+    state: absent
+  delegate_to: localhost

@@ -1,0 +1,47 @@
+---
+# Site maintenance playbook - Start, stop, restart services
+
+- name: Manage Rin Application
+  hosts: homelab
+  gather_facts: no
+  become: yes
+  
+  vars_prompt:
+    - name: action
+      prompt: "What action do you want to perform? (start/stop/restart/status)"
+      private: no
+      default: "status"
+  
+  tasks:
+    - name: Perform {{ action }} on Rin service
+      ansible.builtin.systemd:
+        name: rin
+        state: "{{ 'started' if action == 'start' else 'stopped' if action == 'stop' else 'restarted' if action == 'restart' else omit }}"
+      when: action in ['start', 'stop', 'restart']
+      
+    - name: Get Rin service status
+      ansible.builtin.systemd:
+        name: rin
+      register: service_status
+      
+    - name: Display service status
+      ansible.builtin.debug:
+        msg:
+          - "Service: rin"
+          - "State: {{ service_status.status.ActiveState }}"
+          - "Sub-state: {{ service_status.status.SubState }}"
+          - "Loaded: {{ service_status.status.LoadState }}"
+          
+    - name: Check application health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}"
+        status_code: 200
+        timeout: 10
+      register: health_check
+      ignore_errors: yes
+      when: service_status.status.ActiveState == 'active'
+      
+    - name: Display health check result
+      ansible.builtin.debug:
+        msg: "Application is {{ 'healthy' if health_check.status == 200 else 'not responding' }}"
+      when: service_status.status.ActiveState == 'active'

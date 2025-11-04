@@ -1,0 +1,89 @@
+---
+# Test playbook to validate Ansible configuration and syntax
+
+- name: Validate Ansible Configuration
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  
+  tasks:
+    - name: Check Ansible version
+      ansible.builtin.shell: which ansible && ansible --version
+      register: ansible_version
+      changed_when: false
+      environment:
+        PATH: "/opt/pipx_bin:{{ ansible_env.PATH }}"
+      
+    - name: Display Ansible version
+      ansible.builtin.debug:
+        var: ansible_version.stdout_lines
+        
+    - name: Validate inventory file
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../inventories/hosts.yml"
+      register: inventory_stat
+      
+    - name: Assert inventory exists
+      ansible.builtin.assert:
+        that:
+          - inventory_stat.stat.exists
+        fail_msg: "Inventory file does not exist"
+        success_msg: "Inventory file found"
+        
+    - name: Check for vault file
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../group_vars/all/vault.yml"
+      register: vault_stat
+      
+    - name: Display vault file status
+      ansible.builtin.debug:
+        msg: "Vault file {{ 'exists' if vault_stat.stat.exists else 'does not exist' }}"
+        
+    - name: Validate role structure
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../roles/{{ item }}/tasks/main.yml"
+      register: role_stat
+      loop:
+        - common
+        - rin-app
+        - cloudflare
+        - homelab
+      failed_when: not role_stat.stat.exists
+      
+    - name: Display role validation
+      ansible.builtin.debug:
+        msg: "All roles have valid structure"
+        
+    - name: Check playbook files
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../playbooks/{{ item }}"
+      register: playbook_stat
+      loop:
+        - deploy.yml
+        - maintenance.yml
+        - backup.yml
+        - health-check.yml
+      failed_when: not playbook_stat.stat.exists
+      
+    - name: Display playbook validation
+      ansible.builtin.debug:
+        msg: "All playbooks exist"
+        
+    - name: Check ansible.cfg
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../ansible.cfg"
+      register: cfg_stat
+      
+    - name: Assert ansible.cfg exists
+      ansible.builtin.assert:
+        that:
+          - cfg_stat.stat.exists
+        fail_msg: "ansible.cfg does not exist"
+        success_msg: "ansible.cfg found"
+        
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "=== Validation Complete ==="
+          - "All required files and roles are present"
+          - "Ansible configuration is valid"

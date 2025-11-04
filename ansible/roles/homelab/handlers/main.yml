@@ -1,0 +1,14 @@
+---
+# Handlers for homelab role
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  become: yes
+
+- name: Restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
+  become: yes

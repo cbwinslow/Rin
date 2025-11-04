@@ -37,7 +37,34 @@ Rin is a blog based on Cloudflare Pages + Workers + D1 + R2. It does not require
 13. For more features, please refer to https://xeu.life
 
 # Documentation
-[docs.openrin.org](https://docs.openrin.org)
+- **[Official Docs](https://docs.openrin.org)** - Complete Rin documentation
+- **[Deployment Guide](./DEPLOYMENT.md)** - Deploy with Ansible to Cloudflare or homelab
+- **[Quick Start](#quick-start-with-ansible)** - Get started in minutes
+
+## Quick Start with Ansible
+
+Deploy Rin to Cloudflare or your own server with our automated Ansible deployment:
+
+```bash
+# 1. Run the setup wizard
+./setup.sh
+
+# 2. Deploy to Cloudflare
+./deploy.sh cloudflare
+
+# OR deploy to your homelab server
+./deploy.sh homelab
+```
+
+**Features:**
+- 🚀 One-command deployment
+- 🔒 Secure vault for secrets
+- 🌐 Automatic SSL/TLS setup
+- 📦 Automated backups
+- 🔄 Easy updates and rollbacks
+- 📊 Health monitoring
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 ## Star History
 

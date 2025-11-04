@@ -1,0 +1,59 @@
+---
+# Test inventory for Ansible playbooks
+# This is used for local testing and validation
+
+all:
+  children:
+    test_cloudflare:
+      hosts:
+        localhost:
+          ansible_connection: local
+          deployment_type: cloudflare
+          domain: test.example.com
+          cloudflare_zone_id: "test_zone_id"
+          cloudflare_account_id: "test_account_id"
+          cloudflare_api_token: "test_token"
+          
+    test_homelab:
+      hosts:
+        test_server:
+          ansible_connection: local
+          deployment_type: homelab
+          domain: test.example.com
+          
+  vars:
+    # Test configuration
+    app_name: rin
+    app_user: test_rin
+    app_group: test_rin
+    app_port: 11498
+    app_base_dir: "/tmp/rin-test"
+    app_repo_url: "https://github.com/openRin/Rin.git"
+    app_branch: main
+    
+    node_version: "22"
+    bun_version: "1.2.13"
+    
+    db_name: rin_test
+    worker_name: rin-server-test
+    
+    s3_region: auto
+    s3_folder: images/
+    s3_cache_folder: cache/
+    s3_force_path_style: "false"
+    
+    rss_title: "Rin Test Blog"
+    rss_description: "A test blog"
+    
+    # Test secrets
+    github_client_id: "test_client_id"
+    github_client_secret: "test_client_secret"
+    jwt_secret: "test_jwt_secret"
+    s3_endpoint: "https://test-s3.example.com"
+    s3_access_host: "https://test-s3.example.com"
+    s3_bucket: "test-bucket"
+    s3_access_key_id: "test_key"
+    s3_secret_access_key: "test_secret"
+    webhook_url: "https://test-webhook.example.com"
+    ssl_email: "test@example.com"
+    frontend_url: "http://localhost:5173"

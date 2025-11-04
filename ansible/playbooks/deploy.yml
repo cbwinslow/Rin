@@ -1,0 +1,70 @@
+---
+# Main deployment playbook for Rin
+# Supports both Cloudflare and homelab deployments
+
+- name: Deploy Rin to Cloudflare
+  hosts: cloudflare
+  gather_facts: no
+  
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg: "Deploying Rin to Cloudflare for domain: {{ domain }}"
+    
+  roles:
+    - role: cloudflare
+      tags: ['cloudflare', 'deploy']
+
+- name: Deploy Rin to Homelab
+  hosts: homelab
+  gather_facts: yes
+  become: yes
+  
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg: "Deploying Rin to homelab server: {{ ansible_host }}"
+    
+    - name: Check if host is reachable
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+  
+  roles:
+    - role: common
+      tags: ['common', 'setup']
+    
+    - role: rin-app
+      tags: ['app', 'deploy']
+    
+    - role: homelab
+      tags: ['homelab', 'webserver']
+  
+  post_tasks:
+    - name: Verify Rin service is running
+      ansible.builtin.systemd:
+        name: rin
+        state: started
+      register: service_status
+      
+    - name: Display service status
+      ansible.builtin.debug:
+        msg: "Rin service is {{ service_status.status.ActiveState }}"
+      
+    - name: Wait for application to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}"
+        status_code: 200
+        timeout: 60
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 5
+      ignore_errors: yes
+      
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "Rin has been deployed successfully!"
+          - "Domain: {{ domain }}"
+          - "Local URL: http://localhost:{{ app_port }}"
+          - "Public URL: https://{{ domain }}"

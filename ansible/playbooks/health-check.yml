@@ -1,0 +1,78 @@
+---
+# Health check and monitoring playbook
+
+- name: Health Check Rin Deployment
+  hosts: all
+  gather_facts: yes
+  
+  tasks:
+    - name: Check homelab service status
+      ansible.builtin.systemd:
+        name: rin
+      register: rin_service
+      become: yes
+      when: deployment_type == "homelab"
+      
+    - name: Check application endpoint (homelab)
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}"
+        status_code: 200
+        timeout: 10
+      register: local_health
+      ignore_errors: yes
+      when: deployment_type == "homelab"
+      
+    - name: Check public domain
+      ansible.builtin.uri:
+        url: "https://{{ domain }}"
+        status_code: 200
+        timeout: 30
+        validate_certs: yes
+      register: public_health
+      ignore_errors: yes
+      delegate_to: localhost
+      
+    - name: Check SSL certificate expiry (homelab)
+      ansible.builtin.command: >
+        openssl s_client -connect {{ domain }}:443 -servername {{ domain }} < /dev/null 2>/dev/null |
+        openssl x509 -noout -dates
+      register: ssl_dates
+      delegate_to: localhost
+      ignore_errors: yes
+      when: deployment_type == "homelab"
+      
+    - name: Display health check results
+      ansible.builtin.debug:
+        msg:
+          - "=== Rin Health Check Results ==="
+          - "Deployment Type: {{ deployment_type }}"
+          - "Domain: {{ domain }}"
+          - "{% if deployment_type == 'homelab' %}Service Status: {{ rin_service.status.ActiveState | default('unknown') }}{% endif %}"
+          - "{% if deployment_type == 'homelab' %}Local Health: {{ 'OK' if local_health.status == 200 else 'FAILED' }}{% endif %}"
+          - "Public Health: {{ 'OK' if public_health.status == 200 else 'FAILED' }}"
+          - "{% if deployment_type == 'homelab' and ssl_dates.rc == 0 %}SSL Certificate: {{ ssl_dates.stdout_lines | default(['Not available']) }}{% endif %}"
+          
+    - name: Gather system metrics (homelab)
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all'
+          - '!min'
+          - memory
+          - processor
+          - network
+      when: deployment_type == "homelab"
+      
+    - name: Check disk usage (homelab)
+      ansible.builtin.command: df -h {{ app_base_dir }}
+      register: disk_usage
+      become: yes
+      when: deployment_type == "homelab"
+      
+    - name: Display system metrics (homelab)
+      ansible.builtin.debug:
+        msg:
+          - "=== System Metrics ==="
+          - "Memory Total: {{ ansible_memtotal_mb }}MB"
+          - "Memory Free: {{ ansible_memfree_mb }}MB"
+          - "Disk Usage: {{ disk_usage.stdout_lines | default(['N/A']) }}"
+      when: deployment_type == "homelab"

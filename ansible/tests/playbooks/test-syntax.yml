@@ -1,0 +1,47 @@
+---
+# Test playbook for syntax checking all playbooks
+
+- name: Syntax Check All Playbooks
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  
+  vars:
+    playbook_dir: "{{ playbook_dir | dirname | dirname }}/playbooks"
+    
+  tasks:
+    - name: Find all playbook files
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}"
+        patterns: "*.yml"
+      register: playbooks
+      
+    - name: Display found playbooks
+      ansible.builtin.debug:
+        msg: "Found {{ playbooks.files | length }} playbooks"
+        
+    - name: Syntax check each playbook
+      ansible.builtin.command: >
+        ansible-playbook {{ item.path }} --syntax-check
+        -i {{ playbook_dir }}/../tests/inventory/test-hosts.yml
+      register: syntax_check
+      changed_when: false
+      loop: "{{ playbooks.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+        
+    - name: Display syntax check results
+      ansible.builtin.debug:
+        msg: "✓ {{ item.item.path | basename }}: OK"
+      loop: "{{ syntax_check.results }}"
+      loop_control:
+        label: "{{ item.item.path | basename }}"
+      when: item.rc == 0
+      
+    - name: Report any syntax errors
+      ansible.builtin.fail:
+        msg: "Syntax error in {{ item.item.path | basename }}"
+      loop: "{{ syntax_check.results }}"
+      loop_control:
+        label: "{{ item.item.path | basename }}"
+      when: item.rc != 0

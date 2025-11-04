@@ -1,0 +1,73 @@
+---
+# Backup and restore playbook
+
+- name: Backup Rin Application
+  hosts: homelab
+  gather_facts: yes
+  become: yes
+  
+  vars:
+    backup_dir: "{{ app_base_dir }}/backups"
+    backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+    
+  tasks:
+    - name: Create backup directory
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+        
+    - name: Stop Rin service before backup
+      ansible.builtin.systemd:
+        name: rin
+        state: stopped
+      when: backup_with_service_stop | default(false)
+        
+    - name: Backup application directory
+      ansible.builtin.archive:
+        path: "{{ app_base_dir }}/{{ app_name }}"
+        dest: "{{ backup_dir }}/rin-app-{{ backup_timestamp }}.tar.gz"
+        format: gz
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        
+    - name: Backup configuration files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ backup_dir }}/{{ item | basename }}-{{ backup_timestamp }}"
+        remote_src: yes
+      loop:
+        - "{{ app_base_dir }}/{{ app_name }}/.dev.vars"
+        - "{{ app_base_dir }}/{{ app_name }}/wrangler.toml"
+        - "/etc/systemd/system/rin.service"
+        - "/etc/nginx/sites-available/rin"
+      ignore_errors: yes
+        
+    - name: Start Rin service after backup
+      ansible.builtin.systemd:
+        name: rin
+        state: started
+      when: backup_with_service_stop | default(false)
+        
+    - name: Remove old backups (keep last 30 days)
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        age: "{{ backup_retention_days }}d"
+        patterns: "*.tar.gz"
+      register: old_backups
+      
+    - name: Delete old backup files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      when: old_backups.files | length > 0
+      
+    - name: Display backup information
+      ansible.builtin.debug:
+        msg:
+          - "Backup completed successfully!"
+          - "Backup file: {{ backup_dir }}/rin-app-{{ backup_timestamp }}.tar.gz"
+          - "Old backups removed: {{ old_backups.files | length }}"
